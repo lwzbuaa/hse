@@ -7,10 +7,11 @@ from datetime import datetime
 import sys
 import math
 import time
-from data import inputs, standardize_image
+
 import numpy as np
 import tensorflow as tf
-from detect import *
+from head.data import inputs, standardize_image
+from head.detect import ObjectDetectorCascadeOpenCV
 import re
 
 RESIZE_AOI = 256
