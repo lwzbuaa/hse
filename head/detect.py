@@ -21,9 +21,10 @@ class ObjectDetectorCascadeOpenCV(ObjectDetector):
         self.basename = basename
         self.face_cascade = cv2.CascadeClassifier(model_name)
 
-    def run(self, image_file):
-        print(image_file)
-        img = cv2.imread(image_file)
+    def run(self, img):
+        if isinstance(img, str) :
+            print(img)
+            img = cv2.imread(img)
         min_h = int(max(img.shape[0] / self.min_height_dec, self.min_height_thresh))
         min_w = int(max(img.shape[1] / self.min_width_dec, self.min_width_thresh))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

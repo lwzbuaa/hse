@@ -1,4 +1,4 @@
-from detect import ObjectDetector
+from head.detect import ObjectDetector
 
 import numpy as np
 import tensorflow as tf
@@ -76,7 +76,7 @@ class YOLOBase(ObjectDetector):
         half_w = w // 2
         half_h = h // 2
         upper_cut = [y + half_h, x + half_w]
-        lower_cut = [y - half_h, x - half_w];
+        lower_cut = [y - half_h, x - half_w]
         roi_color = img[lower_cut[0]:upper_cut[0], lower_cut[1]:upper_cut[1]]
         cv2.imwrite(name, roi_color)
         return name
@@ -85,11 +85,13 @@ class YOLOBase(ObjectDetector):
         half_w = w // 2
         half_h = h // 2
         upper_cut = [y + half_h, x + half_w]
-        lower_cut = [y - half_h, x - half_w];
+        lower_cut = [y - half_h, x - half_w]
         cv2.rectangle(img, (lower_cut[1], lower_cut[0]), (upper_cut[1], upper_cut[0]), (0, 255, 0), 2)
 
-    def run(self, filename):
-        img = cv2.imread(filename)
+    def run(self, img):
+        if isinstance(img, str) :
+            print(img)
+            img = cv2.imread(img)
         self.h_img, self.w_img, _ = img.shape
         img_resized = cv2.resize(img, (448, 448))
         img_RGB = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
@@ -106,20 +108,14 @@ class YOLOBase(ObjectDetector):
         print('%d faces detected' % len(images))
 
         for (x, y, w, h, p) in faces:
-            print('Face found [%d, %d, %d, %d] (%.2f)' % (x, y, w, h, p));
+            print('Face found [%d, %d, %d, %d] (%.2f)' % (x, y, w, h, p))
             self.draw_rect(img, x, y, w, h)
             # Fix in case nothing found in the image
         outfile = '%s/%s.jpg' % (self.tgtdir, self.basename)
         cv2.imwrite(outfile, img)
         return images, outfile
 
-    def __init__(self, model_name, basename, tgtdir, alpha, threshold, iou_threshold):
-        self.alpha = alpha
-        self.threshold = threshold
-        self.iou_threshold = iou_threshold
-        self.basename = basename
-        self.tgtdir = tgtdir
-        self.load_model(model_name)
+    
 
 class PersonDetectorYOLOTiny(YOLOBase):
     def __init__(self, model_name, basename='frontal-face', tgtdir='.', alpha=0.1, threshold=0.2, iou_threshold=0.5):

@@ -1,6 +1,6 @@
 import tensorflow as tf
-from model import select_model, get_checkpoint
-from utils import RESIZE_AOI, RESIZE_FINAL
+from head.model import select_model, get_checkpoint
+from head.utils import RESIZE_AOI, RESIZE_FINAL
 from tensorflow.python.framework import graph_util
 from tensorflow.contrib.learn.python.learn.utils import export
 from tensorflow.python.saved_model import builder as saved_model_builder

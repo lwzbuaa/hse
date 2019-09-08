@@ -1,4 +1,4 @@
-from detect import ObjectDetector
+from head.detect import ObjectDetector
 
 import dlib
 import cv2
@@ -11,9 +11,10 @@ class FaceDetectorDlib(ObjectDetector):
         self.detector = dlib.get_frontal_face_detector()
         self.predictor = dlib.shape_predictor(model_name)
 
-    def run(self, image_file):
-        print(image_file)
-        img = cv2.imread(image_file)
+    def run(self, img):
+        if isinstance(img, str) :
+            print(img)
+            img = cv2.imread(img)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         faces = self.detector(gray, 1)
         images = []
