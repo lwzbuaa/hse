@@ -11,9 +11,11 @@ import tensorflow as tf
 from model import select_model, get_checkpoint
 from head.utils import ImageCoder, ProgressBar,\
      make_multi_crop_batch, make_multi_image_batch, face_detection_model
+from head.detect import FACE_PAD
 import os
 import json
 import csv
+import cv2
 
 RESIZE_FINAL = 227
 GENDER_LIST =['M','F']
@@ -50,17 +52,20 @@ MAX_BATCH_SZ = 128
 
 # tf.app.flags.DEFINE_string('face_detection_type', 'cascade', 'Face detection model type (yolo_tiny|cascade)')
 FLAGS = {}
-FLAGS.model_dir= '' #'Model directory (where training data lives)')
+FLAGS.model_dir= './model/' #'Model directory (where training data lives)')
 FLAGS.class_type= 'age',# Classification type (age|gender)')
 FLAGS.device_id= '/cpu:0',# 'What processing unit to execute inference on')
-FLAGS.filename= ''# 'File (Image) or File list (Text/No header TSV) to process')
-FLAGS.target= ''#  'CSV file containing the filename processed along with best guess and score')
+# FLAGS.filename= ''# 'File (Image) or File list (Text/No header TSV) to process')
+FLAGS.target= './output/'#  'CSV file containing the filename processed along with best guess and score')
 FLAGS.checkpoint= 'checkpoint'# Checkpoint basename')
 FLAGS.model_type= 'default'# 'Type of convnet')
 FLAGS.requested_step= '' # 'Within the model directory, a requested step to restore e.g., 9000')
 FLAGS.single_look=  False # 'single look at the image or multiple crops')
 FLAGS.face_detection_model= ''# 'Do frontal face detection with model specified')
 FLAGS.face_detection_type='cascade'
+FLAGS.pip = 0.175
+FLAGS.pip_off = 0.01
+
           
 
 
@@ -156,82 +161,108 @@ class DETECT :
     single_look: bool
     face_detection_model: str 
     face_detection_type: str
-    def __init__(self, **kwargs):
+    pip :int
+    pip_off : int
+    def __init__(self,img, **kwargs):
         self.__dict__.update(FLAGS) # set up default values
         self.__dict__.update(kwargs) # and update with user overrides
+        self.dim =( img.shape[0],img.shape[1])
+        self.pip_dim = int(self.pip*self.dim[0])
+        self.pip_off = int(self.pip_off*self.dim[0])
+        self.pip_rows = self.dim[0] // self.pip_dim
 
-    def main(self, argv=None):  # pylint: disable=unused-argument
+
+    def annotate(self,img, faces, rectangles):
+        for i in range(len(faces)):
+            n_col = i  //self.pip_rows
+            n_row =  i % self.pip_rows
+            x = self.dim[0] - (n_col+1)*(self.pip_dim +self.pip_off)  
+            y = self.pip_off+ n_row * (self.pip_dim +self.pip_off) 
+            pip = cv2.resize(faces[i],(self.pip_dim,self.pip_dim))
+            img[x:x+self.pip_dim,y:y+self.pip_dim,:]=pip
+            x, y, w, h = rectangles[i]
+            self.draw_rect(img,x, y, w, h)
+        return img
+            
+    def draw_rect(self, img, x, y, w, h):
+        upper_cut = [min(img.shape[0], y + h + FACE_PAD), min(img.shape[1], x + w + FACE_PAD)]
+        lower_cut = [max(y - FACE_PAD, 0), max(x - FACE_PAD, 0)]
+        cv2.rectangle(img, (lower_cut[1], lower_cut[0]), (upper_cut[1], upper_cut[0]), (255, 0, 0), 2)
+
+
+    def main(self, img):  # pylint: disable=unused-argument
 
         files = []
         
         if self.face_detection_model:
             print('Using face detector (%s) %s' % (self.face_detection_type, self.face_detection_model))
             face_detect = face_detection_model(self.face_detection_type, self.face_detection_model)
-            face_files, rectangles = face_detect.run(self.filename)
+            face_files, rectangles = face_detect.run(img)
             print(face_files)
+            self.annotate(img,face_files,rectangles)
             files += face_files
 
-        config = tf.ConfigProto(allow_soft_placement=True)
-        with tf.Session(config=config) as sess:
+        # config = tf.ConfigProto(allow_soft_placement=True)
+        # with tf.Session(config=config) as sess:
 
-            label_list = AGE_LIST if self.class_type == 'age' else GENDER_LIST
-            nlabels = len(label_list)
+        #     label_list = AGE_LIST if self.class_type == 'age' else GENDER_LIST
+        #     nlabels = len(label_list)
 
-            print('Executing on %s' % self.device_id)
-            model_fn = select_model(self.model_type)
+        #     print('Executing on %s' % self.device_id)
+        #     model_fn = select_model(self.model_type)
 
-            with tf.device(self.device_id):
+        #     with tf.device(self.device_id):
                 
-                images = tf.placeholder(tf.float32, [None, RESIZE_FINAL, RESIZE_FINAL, 3])
-                logits = model_fn(nlabels, images, 1, False)
-                init = tf.global_variables_initializer()
+        #         images = tf.placeholder(tf.float32, [None, RESIZE_FINAL, RESIZE_FINAL, 3])
+        #         logits = model_fn(nlabels, images, 1, False)
+        #         init = tf.global_variables_initializer()
                 
-                requested_step = self.requested_step if self.requested_step else None
+        #         requested_step = self.requested_step if self.requested_step else None
             
-                checkpoint_path = '%s' % (self.model_dir)
+        #         checkpoint_path = '%s' % (self.model_dir)
 
-                model_checkpoint_path, global_step = get_checkpoint(checkpoint_path, requested_step, self.checkpoint)
+        #         model_checkpoint_path, global_step = get_checkpoint(checkpoint_path, requested_step, self.checkpoint)
                 
-                saver = tf.train.Saver()
-                saver.restore(sess, model_checkpoint_path)
+        #         saver = tf.train.Saver()
+        #         saver.restore(sess, model_checkpoint_path)
                             
-                softmax_output = tf.nn.softmax(logits)
+        #         softmax_output = tf.nn.softmax(logits)
 
-                coder = ImageCoder()
+        #         coder = ImageCoder()
 
-                # Support a batch mode if no face detection model
-                if len(files) == 0:
-                    if (os.path.isdir(self.filename)):
-                        for relpath in os.listdir(self.filename):
-                            abspath = os.path.join(self.filename, relpath)
+        #         # Support a batch mode if no face detection model
+        #         if len(files) == 0:
+        #             if (os.path.isdir(self.filename)):
+        #                 for relpath in os.listdir(self.filename):
+        #                     abspath = os.path.join(self.filename, relpath)
                             
-                            if os.path.isfile(abspath) and any([abspath.endswith('.' + ty) for ty in ('jpg', 'png', 'JPG', 'PNG', 'jpeg')]):
-                                print(abspath)
-                                files.append(abspath)
-                    else:
-                        files.append(self.filename)
-                        # If it happens to be a list file, read the list and clobber the files
-                        if any([self.filename.endswith('.' + ty) for ty in ('csv', 'tsv', 'txt')]):
-                            files = list_images(self.filename)
+        #                     if os.path.isfile(abspath) and any([abspath.endswith('.' + ty) for ty in ('jpg', 'png', 'JPG', 'PNG', 'jpeg')]):
+        #                         print(abspath)
+        #                         files.append(abspath)
+        #             else:
+        #                 files.append(self.filename)
+        #                 # If it happens to be a list file, read the list and clobber the files
+        #                 if any([self.filename.endswith('.' + ty) for ty in ('csv', 'tsv', 'txt')]):
+        #                     files = list_images(self.filename)
                     
-                writer = None
-                output = None
-                if self.target:
-                    print('Creating output file %s' % self.target)
-                    output = open(self.target, 'w')
-                    writer = csv.writer(output)
-                    writer.writerow(('file', 'label', 'score'))
-                image_files = list(filter(lambda x: x is not None, [resolve_file(f) for f in files]))
-                print(image_files)
-                if self.single_look:
-                    classify_many_single_crop(sess, label_list, softmax_output, coder, images, image_files, writer)
+        #         writer = None
+        #         output = None
+        #         if self.target:
+        #             print('Creating output file %s' % self.target)
+        #             output = open(self.target, 'w')
+        #             writer = csv.writer(output)
+        #             writer.writerow(('file', 'label', 'score'))
+        #         image_files = list(filter(lambda x: x is not None, [resolve_file(f) for f in files]))
+        #         print(image_files)
+        #         if self.single_look:
+        #             classify_many_single_crop(sess, label_list, softmax_output, coder, images, image_files, writer)
 
-                else:
-                    for image_file in image_files:
-                        classify_one_multi_crop(sess, label_list, softmax_output, coder, images, image_file, writer)
+        #         else:
+        #             for image_file in image_files:
+        #                 classify_one_multi_crop(sess, label_list, softmax_output, coder, images, image_file, writer)
 
-                if output is not None:
-                    output.close()
+        #         if output is not None:
+        #             output.close()
         
 if __name__ == '__main__':
     tf.app.run()

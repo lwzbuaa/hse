@@ -107,13 +107,13 @@ class YOLOBase(ObjectDetector):
 
         print('%d faces detected' % len(images))
 
-        for (x, y, w, h, p) in faces:
-            print('Face found [%d, %d, %d, %d] (%.2f)' % (x, y, w, h, p))
-            self.draw_rect(img, x, y, w, h)
-            # Fix in case nothing found in the image
-        outfile = '%s/%s.jpg' % (self.tgtdir, self.basename)
-        cv2.imwrite(outfile, img)
-        return images, outfile
+        # for (x, y, w, h, p) in faces:
+        #     print('Face found [%d, %d, %d, %d] (%.2f)' % (x, y, w, h, p))
+        #     self.draw_rect(img, x, y, w, h)
+        #     # Fix in case nothing found in the image
+        # outfile = '%s/%s.jpg' % (self.tgtdir, self.basename)
+        # cv2.imwrite(outfile, img)
+        return images, faces
 
     
 

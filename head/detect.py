@@ -36,12 +36,12 @@ class ObjectDetectorCascadeOpenCV(ObjectDetector):
 
         print('%d faces detected' % len(images))
 
-        for (x, y, w, h) in faces:
-            self.draw_rect(img, x, y, w, h)
-            # Fix in case nothing found in the image
-        outfile = '%s/%s.jpg' % (self.tgtdir, self.basename)
-        cv2.imwrite(outfile, img)
-        return images, outfile
+        # for (x, y, w, h) in faces:
+        #     self.draw_rect(img, x, y, w, h)
+        #     # Fix in case nothing found in the image
+        # outfile = '%s/%s.jpg' % (self.tgtdir, self.basename)
+        # cv2.imwrite(outfile, img)
+        return images, faces
 
     def sub_image(self, name, img, x, y, w, h):
         upper_cut = [min(img.shape[0], y + h + FACE_PAD), min(img.shape[1], x + w + FACE_PAD)]
